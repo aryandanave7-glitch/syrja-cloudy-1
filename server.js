@@ -25,6 +25,7 @@ const mongoClient = new MongoClient(mongoUri, {
 
 let db; // To hold the database connection
 let idsCollection; // To hold the collection reference
+let offlineMessagesCollection; // This variable holds the 1-on-1 relay collection
 let groupsCollection;
 let groupMessagesCollection;
 
