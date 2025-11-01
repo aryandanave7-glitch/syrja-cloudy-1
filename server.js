@@ -592,12 +592,7 @@ io.on("connection", (socket) => {
       });
     }
     
-    // --- NEW: Check for offline relayed messages ---
-    
-// --- END NEW ---
- });
-  
-      // --- NEW: Check for offline 1-on-1 relayed messages (PUSH on login) ---
+    // --- NEW: Check for offline 1-on-1 relayed messages (PUSH on login) ---
     (async () => {
       try {
           // 'key' is defined in this scope from socket.on("register")
@@ -646,6 +641,9 @@ io.on("connection", (socket) => {
       }
     })();
     // --- END NEW ---
+ });
+  
+     
       
   // --- NEW: Handle client confirmation of message receipt ---
   socket.on("message-delivered", async (data) => {
