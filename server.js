@@ -861,19 +861,25 @@ io.on("connection", (socket) => {
     }
   });
 
+  // (Around line 850 in server.js)
+  
   /**
    * (Phase 3A) Admin adds a new member (who has already accepted P2P).
    */
-  socket.on("group:add_member", async (data) => {
+  socket.on("group:add_member", async (data, callback) => { // <-- ADD , callback
     const { groupId, newMember } = data; // newMember is {pubKey, senderKey}
     const adminPubKey = socket.data.pubKey;
-    if (!adminPubKey) return;
+    if (!adminPubKey) {
+      if (callback) callback({ error: "Not registered" }); // <-- ADD ACK
+      return;
+    }
 
     try {
       // Verify admin is admin
       const group = await groupsCollection.findOne({ _id: groupId });
       if (!group || group.admin !== adminPubKey) {
         console.warn(`[Group] Non-admin ${adminPubKey.slice(0,6)} tried to add member to ${groupId}`);
+        if (callback) callback({ error: "Not admin" }); // <-- ADD ACK
         return;
       }
 
@@ -883,8 +889,11 @@ io.on("connection", (socket) => {
         { $addToSet: { members: newMember } }
       );
       console.log(`[Group] Admin ${adminPubKey.slice(0,6)} added ${newMember.pubKey.slice(0,6)} to ${groupId}`);
+      if (callback) callback({ success: true }); // <-- ADD SUCCESS ACK
+
     } catch (e) {
       console.error(`[Group] Failed to add member to ${groupId}: ${e}`);
+      if (callback) callback({ error: e.message }); // <-- ADD ERROR ACK
     }
   });
 
