@@ -598,56 +598,56 @@ io.on("connection", (socket) => {
 // --- END NEW ---
  });
   
-  // --- NEW: Check for offline 1-on-1 relayed messages (PUSH on login) ---
-(async () => {
-  try {
-      // 'key' is defined in this scope from socket.on("register")
-      const messages = await offlineMessagesCollection.find({ recipientPubKey: key }).toArray();
-      if (messages.length > 0) {
-          console.log(`📬 [Register] Pushing ${messages.length} 1-on-1 relayed messages to ${key.slice(0,10)}...`);
-          messages.forEach(msg => {
-              socket.emit("offline-message", {
-                  id: msg._id.toString(),
-                  from: msg.senderPubKey,
-                  payload: msg.encryptedPayload,
-                  sentAt: msg.createdAt
+      // --- NEW: Check for offline 1-on-1 relayed messages (PUSH on login) ---
+    (async () => {
+      try {
+          // 'key' is defined in this scope from socket.on("register")
+          const messages = await offlineMessagesCollection.find({ recipientPubKey: key }).toArray();
+          if (messages.length > 0) {
+              console.log(`📬 [Register] Pushing ${messages.length} 1-on-1 relayed messages to ${key.slice(0,10)}...`);
+              messages.forEach(msg => {
+                  socket.emit("offline-message", {
+                      id: msg._id.toString(),
+                      from: msg.senderPubKey,
+                      payload: msg.encryptedPayload,
+                      sentAt: msg.createdAt
+                  });
               });
-          });
+          }
+      } catch (err) {
+          console.error(`Error fetching offline 1-on-1 messages for ${key.slice(0,10)}:`, err);
       }
-  } catch (err) {
-      console.error(`Error fetching offline 1-on-1 messages for ${key.slice(0,10)}:`, err);
-  }
-})();
-// --- END NEW ---
-
-// --- NEW: Check for offline GROUP messages (PUSH on login) ---
-(async () => {
-  try {
-    // 'key' is defined in this scope from socket.on("register")
-    const messages = await groupMessagesCollection.find({ "pendingRecipients.pubKey": key }).toArray();
-    if (messages.length > 0) {
-      console.log(`[Group] [Register] Pushing ${messages.length} offline group messages for ${key.slice(0,6)}...`);
-      for (const msg of messages) {
-        socket.emit("group:message_in", {
-          groupId: msg.groupId,
-          senderPubKey: msg.senderPubKey,
-          blob: msg.encryptedPayload,
-          messageId: msg._id.toString()
-        });
-        // Remove this user from the pending list
-        await groupMessagesCollection.updateOne(
-          { _id: msg._id },
-          { $pull: { pendingRecipients: { pubKey: key } } }
-        );
+    })();
+    // --- END NEW ---
+    
+    // --- NEW: Check for offline GROUP messages (PUSH on login) ---
+    (async () => {
+      try {
+        // 'key' is defined in this scope from socket.on("register")
+        const messages = await groupMessagesCollection.find({ "pendingRecipients.pubKey": key }).toArray();
+        if (messages.length > 0) {
+          console.log(`[Group] [Register] Pushing ${messages.length} offline group messages for ${key.slice(0,6)}...`);
+          for (const msg of messages) {
+            socket.emit("group:message_in", {
+              groupId: msg.groupId,
+              senderPubKey: msg.senderPubKey,
+              blob: msg.encryptedPayload,
+              messageId: msg._id.toString()
+            });
+            // Remove this user from the pending list
+            await groupMessagesCollection.updateOne(
+              { _id: msg._id },
+              { $pull: { pendingRecipients: { pubKey: key } } }
+            );
+          }
+        }
+      } catch (e) {
+        // 'key' is defined here, so this will work now
+        console.error(`[Group] [Register] Failed to push offline group messages to ${key.slice(0,6)}: ${e}`);
       }
-    }
-  } catch (e) {
-    // 'key' is defined here, so this will work now
-    console.error(`[Group] [Register] Failed to push offline group messages to ${key.slice(0,6)}: ${e}`);
-  }
-})();
-// --- END NEW ---
-  
+    })();
+    // --- END NEW ---
+      
   // --- NEW: Handle client confirmation of message receipt ---
   socket.on("message-delivered", async (data) => {
       if (!data || !data.id) return;
