@@ -677,28 +677,31 @@ io.on("connection", (socket) => {
     
   // --- NEW: Client "pull" request for offline messages ---
   socket.on("check-for-offline-messages", async () => {
-      const key = socket.data.pubKey;
-      if (!key) return; // Client not registered
+    const key = socket.data.pubKey;
+    if (!key) return; // Client not registered
 
-      try {
-          const messages = await offlineMessagesCollection.find({ recipientPubKey: key }).toArray();
-          if (messages.length > 0) {
-              console.log(`📬 Client ${key.slice(0,10)}... is pulling ${messages.length} relayed messages.`);
-              messages.forEach(msg => {
-                  socket.emit("offline-message", {
-                      id: msg._id.toString(),
-                      from: msg.senderPubKey,
-                      payload: msg.encryptedPayload,
-                      sentAt: msg.createdAt
-                  });
-              });
-          } else {
-               console.log(`📬 Client ${key.slice(0,10)}... pulled messages, 0 found.`);
-          }
-      } catch (err) {
-          console.error(`Error fetching offline messages for ${key.slice(0,10)}:`, err);
-      }
-  });
+    try {
+        const messages = await offlineMessagesCollection.find({ recipientPubKey: key }).toArray();
+        if (messages.length > 0) {
+            console.log(`📬 Client ${key.slice(0,10)}... is pulling ${messages.length} relayed messages.`);
+            messages.forEach(msg => {
+                socket.emit("offline-message", {
+                    id: msg._id.toString(),
+                    from: msg.senderPubKey,
+                    payload: msg.encryptedPayload,
+                    sentAt: msg.createdAt
+                });
+            });
+        } else {
+             console.log(`📬 Client ${key.slice(0,10)}... pulled messages, 0 found.`);
+        }
+    } catch (err) {
+        // --- THIS IS THE FIX ---
+        // We use socket.data.pubKey which is always available here.
+        console.error(`Error fetching offline messages for ${socket.data.pubKey.slice(0,10)}:`, err);
+        // --- END FIX ---
+    }
+});
 
     // --- END NEW ---
   // Handle presence subscription
@@ -978,36 +981,39 @@ io.on("connection", (socket) => {
    * (Phase 3B) A client (like 'E') comes online and pulls group messages
    */
   socket.on("group:check_offline", async () => {
-    const recipientPubKey = socket.data.pubKey;
-    if (!recipientPubKey) return;
-
-    try {
-      // Find all messages where this user is in the pendingRecipients array
-      const messages = await groupMessagesCollection.find({ "pendingRecipients.pubKey": recipientPubKey }).toArray();
-
-      if (messages.length > 0) {
-        console.log(`[Group] Client ${recipientPubKey.slice(0,6)} is pulling ${messages.length} offline group messages.`);
-
-        for (const msg of messages) {
-          // Send the message to the client
-          socket.emit("group:message_in", {
-            groupId: msg.groupId,
-            senderPubKey: msg.senderPubKey,
-            blob: msg.encryptedPayload,
-            messageId: msg._id.toString()
-          });
-
-          // Remove this user from the pending list for that message
-          await groupMessagesCollection.updateOne(
-            { _id: msg._id },
-            { $pull: { pendingRecipients: { pubKey: recipientPubKey } } }
-          );
+      const recipientPubKey = socket.data.pubKey;
+      if (!recipientPubKey) return;
+    
+      try {
+        // Find all messages where this user is in the pendingRecipients array
+        const messages = await groupMessagesCollection.find({ "pendingRecipients.pubKey": recipientPubKey }).toArray();
+    
+        if (messages.length > 0) {
+          console.log(`[Group] Client ${recipientPubKey.slice(0,6)} is pulling ${messages.length} offline group messages.`);
+    
+          for (const msg of messages) {
+            // Send the message to the client
+            socket.emit("group:message_in", {
+              groupId: msg.groupId,
+              senderPubKey: msg.senderPubKey,
+              blob: msg.encryptedPayload,
+              messageId: msg._id.toString()
+            });
+    
+            // Remove this user from the pending list for that message
+            await groupMessagesCollection.updateOne(
+              { _id: msg._id },
+              { $pull: { pendingRecipients: { pubKey: recipientPubKey } } }
+            );
+          }
         }
+      } catch (e) {
+        // --- THIS IS THE FIX ---
+        // We use 'recipientPubKey', which is the correct variable name defined above.
+        console.error(`[Group] Failed to check offline messages to ${recipientPubKey.slice(0,6)}: ${e}`);
+        // --- END FIX ---
       }
-    } catch (e) {
-      console.error(`[Group] Failed to check offline messages for ${recipientPubKey.slice(0,6)}: ${e}`);
-    }
-  });
+    });
 
   // --- END: GROUP CHAT HANDLERS ---
   socket.on("disconnect", () => {
